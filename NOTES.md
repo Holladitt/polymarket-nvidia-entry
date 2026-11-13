@@ -36,21 +36,21 @@ by the Nov 10–11 launch regime.
 
 ## Local practice results (rebuilt answers, see below)
 
-Current version (**v4**, round 4, practice **0.236538 — top-10 bar 0.237
-REACHED**), verified by re-running `main.py` on the kit inputs and scoring
-with the local scorer; two runs byte-identical (deterministic); ~90 ms/case;
-largest output 288 KB (cap 1 MiB). Calm cases p04/p05 mean **0.130397**
-(best of all versions; guardrail 0.1340):
+Current version (**v6**, round 6, practice **0.222196 — top-10 practice
+zone, ~rank 10 on the 01:18 WIB board**), verified by re-running `main.py`
+on the kit inputs and scoring with the local scorer; two runs byte-identical
+(deterministic); ~100 ms/case; largest output 288 KB (cap 1 MiB). Calm cases
+p04/p05 mean **0.127977** (best of all versions; guardrail 0.1340):
 
 | case | checkpoint (UTC) | loss | median_error | coverage_90 | run_ms |
 |------|------------------|------|--------------|-------------|--------|
-| p00 | 2026-11-12 06:00 | 0.348642 | 1.0269 | 0.8831 | ~90 |
-| p01 | 2026-11-12 10:00 | 0.297096 | 0.7331 | 0.9230 | ~90 |
-| p02 | 2026-11-12 14:00 | 0.316527 | 0.9803 | 0.8704 | ~90 |
-| p03 | 2026-11-12 18:00 | 0.249340 | 0.7181 | 0.9670 | ~90 |
-| p04 | 2026-11-12 22:00 | 0.163520 | 0.4388 | 0.8387 | ~90 |
-| p05 | 2026-11-13 02:00 | 0.097273 | 0.2737 | 0.9075 | ~90 |
-| **mean** | | **0.236538** | **0.6693** | **0.8985** | **~90** |
+| p00 | 2026-11-12 06:00 | 0.276664 | 0.7837 | 0.9594 | ~100 |
+| p01 | 2026-11-12 10:00 | 0.287396 | 0.7158 | 0.9311 | ~100 |
+| p02 | 2026-11-12 14:00 | 0.309507 | 0.9744 | 0.8864 | ~100 |
+| p03 | 2026-11-12 18:00 | 0.247844 | 0.7296 | 0.9438 | ~100 |
+| p04 | 2026-11-12 22:00 | 0.158944 | 0.4324 | 0.8594 | ~100 |
+| p05 | 2026-11-13 02:00 | 0.097010 | 0.2792 | 0.9326 | ~100 |
+| **mean** | | **0.222196** | **0.6317** | **0.9178** | **~100** |
 
 v4 changes vs v3 (see "Round 4" below for the full account):
 - **Regime-scaled pull**: pull strength × (1 + 1.7·(V−Vmed)/Vmed), clipped
@@ -363,3 +363,256 @@ Per-case runs (one `.in` file alone in the input dir) take 80–103 ms
 (cap 8000 ms); two full runs are byte-identical (deterministic);
 largest output file 296 KB (cap 1 MiB). Dev artefacts (CLOB cache,
 rebuilt answers, tuned params) live in `dev/`.
+
+## Round 5 (14 Nov ~00:05-01:10 WIB) — v5: 0.236538 -> 0.222954 (target <=0.229 BEATEN)
+Adit ordered (13 Nov 23:59 + 00:14 + 00:17 WIB): MUST reach top 10; use ALL
+resources + Gemini; force resources to the max. Leaderboard fresh 13 Nov
+23:59 WIB: 2,433 entries, rank 10 = 0.231, v4 (0.236538) ~rank 56 — the
+"top 10" claim from the 22:21 snapshot was stale (corrected in MEMORY.md).
+v4 was already SUBMITTED 13 Nov ~23:44 WIB (submission 01a1d5cb-...,
+platform loss 0.237, rank 67/2,479) — v5 is a replacement candidate,
+submit only on Adit's order. Work done ONLY in dev/main_v5_candidate.py;
+main.py untouched (md5 67dfb2bd6f16f816e752dfca4b8ab772).
+
+New mechanisms (each tested one at a time, verified locally by hand):
+- REGIME-GATED TWO-TIMESCALE PULL: pull(h) gains a fast component
+  (tau ~15 min) gated by regime, w_f_eff = 1.0*clip(2.7*(rscale-1),0,1);
+  calm cases keep v4's slow pull exactly. EDA: true pull response is fast
+  early (OLS slope 0.27 at h<=15 vs v4's 0.06). Gain ~-0.0027.
+- REGIME-GATED LINEAR SHARE TARGET (Gemini #1 idea 3): in volatile regimes
+  the pull converges to the pure board-sum share (adj = x/sum - x) instead
+  of the x*sigma-weighted gap share; blended by regime g =
+  clip(1.93*(rscale-1),0,1). p00 improves 0.3486 -> 0.2766. Gain ~-0.0047.
+- EMPIRICAL-Z FAN BLEND (0.56): Gaussian z blended toward pooled empirical
+  quantiles of (y-med)/sigma(h) by horizon bucket (h=8/38/90/180;
+  q25 -0.07..-0.49 vs Gaussian -0.674, q75 0.00..+0.31 vs +0.674,
+  q95 grows 1.1 -> 3.0 with h). Gain ~-0.0046 in ablation.
+- STALENESS-WEIGHTED pull allocation (Gemini #1 idea 1): raw weights x
+  stale^0.70, stale = zero-move fraction in last 240 min. Marginal (+0.0002
+  in ablation, kept — never hurts materially).
+- Joint random search (3 seeds, ~6,500 evals) + coordinate descent polish.
+  Final params in dev/best_params_v5.json. Notables from descent: kappa
+  0.15 -> 0.0026 (pull tilt nearly gone), tail_wide 1.35 -> 1.07,
+  mid_wide 0.8 -> 0.99, z_blend -> 0.56, pull_tau 111 -> 161.
+
+v5 per case: p00 0.276608, p01 0.291221, p02 0.309624, p03 0.248005,
+p04 0.159240, p05 0.097526; mean 0.222954; calm p04/p05 0.128383
+(guardrail <=0.1340 PASSED, better than v4's 0.130397). Wins vs v4: 5/6
+cases (p05 +0.000253, negligible). Verified via official scorer path
+(poly_score2.py): mean 0.222954, deterministic (byte-identical x2 runs),
+~0.1 s/case. Validation: gate plateau (target_gate_k 1.5-3.0 all
+0.2231-0.2238; fast_gate_k 1.5-2.5 all 0.2230-0.2238); reverse-gate
+placebo 0.239869 (worse than v4 — regime signal real); z-table LOCO
++/-0.001 per case; per-fold ablations: fast pull wins 6/6 folds,
+empirical-z 6/6, linear target 5/6 (value concentrated in p00, never
+hurts other cases), staleness 5/6 (marginal).
+
+REJECTED in round 5 (do not retry without new reason): vol-trend fan
+scaling (catastrophic), v_mode median/recent, regime-scaled give-back,
+two-timescale give-back (helps calm only), z_lo/z_hi asymmetry, per-market
+tick deadband (marginal), k_up_gap_a, adj_db soft-thresholded pull,
+deficit-triggered logit target, logit-space fan (catastrophic 0.267),
+Fisher-information target (worse than linear), Roll bounce decomposition
+(catastrophic 0.237), board conservation-ratio filter (not implemented —
+low prior after 2/3 of that Gemini call failed). Gemini calls: 3 total
+(#1 gave staleness + linear target; #2 all 3 failed; #3 all 3 failed).
+Simular Box independent search (round-5 child) still running at 01:10 WIB;
+parent's parallel 5B track (dev/main_v5b_candidate.py) also running —
+compare before any replacement submit. Irreducible noise: news jumps in
+tiny markets (e.g. Jonah Alben 0.004 -> 0.0835 in p01) cap the practice
+score; p01/p02 remain the worst cases.
+
+Box independent search (child 77acd72d, finished 14 Nov ~01:47 WIB):
+best 0.227994, calm 0.130172 — ALSO beats target <=0.229 and v4, but
+WORSE than local v5 (0.222954) by +0.00504, so NOT the submit candidate.
+Per-case: p00 0.307629, p01 0.292301, p02 0.316166, p03 0.240397,
+p04 0.163285, p05 0.097059. LOCO (refit 5 cases, fine CD): item-weighted
+0.229229 vs in-sample 0.227994. New mechanism: horizon-dependent pull
+asymmetry (kasym_up -0.590, kasym_dn -0.160; asymmetry fades to symmetric
+by h=240) — real but does not stack past local v5. Files on the Box only:
+ /workspace/polywork/r5mine/r5_best_entry.py, r5_best4.json, R5_SUMMARY.md.
+Note: the Box harness replica reads v4 as 0.236985 (true 0.236538), so its
+scores carry ~+0.0004 replica drift. The "0.226575" the Box child flagged
+in /tmp/r5_loco.py is an INTERMEDIATE snapshot of this same local v5 line
+(header claim), superseded by the final 0.222954 — no competing line.
+5B track current best (best_params_v5b.json, 17:45 WIB): 0.230318, calm
+0.128398 — does NOT beat target. RECOMMENDATION: submit v5 (0.222954).
+
+## Round 5B (parallel lane, 14 Nov ~00:17-02:00 WIB; target <=0.229)
+Angle (complementary to round 5, NOT a duplicate): exploit the v4
+neighborhood + regime-V definition variants + regime-form variants, fresh
+seeds (2024/555/999/31337, then 4242/7777/8888/1111, then 2222/3333/4444/5555).
+Bulk compute on Simular Box (10k evals/phase, ~2-2.5 min each); local VM only
+for EDA/verification/Gemini. Harness: /tmp/poly_r5b_var.py (numpy replica of
+main.py + round-5 knobs + vdef/form/hinge); box copy /workspace/polywork/
+poly_r5b_var.py. Selection (clean win vs v4): mean < 0.236538 AND calm
+p04/p05 <= 0.1304 AND worst per-case worsening <= +0.002 AND >=2 cases improve
+>= 0.001.
+
+KEY BUG FOUND + FIXED (round-4/5 harnesses): they defaulted tail_lin to 0,
+but v4's real tail_lin=0.1 lives in best_params.json "extra", not "params"
+-- so they scored v4 as 0.236985 instead of the true stdlib 0.236538. Fixed
+by putting tail_lin: 0.1 in X4; the 5B harness reproduces v3 EXACTLY
+(0.244106) and v4 EXACTLY (0.236538, all per-case exact). Also: box
+score_params returns numpy floats, so json.dump of search results raised
+TypeError (np.bool_ not serializable) and killed the first Phase-B run
+mid-dump -- fixed with bool() cast + default=float. Results are deterministic
+across re-runs (identical best/clean counts).
+
+Phase A (vdef x form at v4 params, vmed recentered per vdef): best slow/log
+0.235648 (calm 0.130134); slow/lin 0.235943; mean/log 0.236246; median/log
+0.236664 (best calm 0.130107); fast/wmean/max/v60/board all worse
+(0.2409-0.2450). VMED_DEF at v4 P: mean 0.002696, median 0.001715, fast
+0.001531, slow 0.003264, wmean 0.004857, max 0.009333, v60 0.001669,
+board 0.03727. V per case (mean): [0.003544, 0.002699, 0.003209, 0.002693,
+0.001945, 0.001309]. r5best rescored in the CORRECTED oracle: tail_lin 0.0
+-> 0.231732; 0.1 -> 0.231209; 0.2 -> 0.231284. r5best + slow/log + tl=0.1 ->
+0.230320 (calm 0.130700). v4 tail_lin sweep: 0.0 -> 0.236985; 0.05 -> 0.236698;
+0.1 -> 0.236538; 0.15 -> 0.236458; 0.2 -> 0.236465 -- tail_lin ~0.15 is v4's
+local optimum, an UNTUNED knob in rounds 4-5.
+
+Gemini (1 call, gemini-4-hydrogen, short prompt): DEADZONE (HINGE-GATED)
+EXCESS-VOLATILITY PULL -- add gamma*max(0, ratio-tau) to the pull weight,
+tau in [1.3, 1.5], so calm cases (ratio <= tau) are EXACTLY untouched.
+Implemented as hinge_tau/hinge_gamma on rscale. Tested locally: the hinge
+provably leaves calm bit-identical (p04/p05 unchanged to 6 decimals) and
+gains ~0.00006 on v4+slow/log; on the fitted B2#3 it is near-neutral
+(0.230265 hinge-off vs 0.230318 fitted) -- kept as fitted, not hand-tuned.
+
+Phase B (10,003 evals, 4 families x 2500): best overall 0.229466 (slow/log
+r5best-neighborhood, calm 0.133775, NOT clean); best clean 0.230455
+(calm 0.128780, worst -0.0014, nimp=6 -- EVERY case improves vs v4).
+5 clean candidates. All top-10 from slow/log@r5best.
+Phase B2 (10,003 evals, centers C1/O1 + hinge, narrow/wide): best overall
+0.228738 (o1_narrow, calm 0.133371, NOT clean -- below the 0.229 target on
+mean but fails calm); 61 clean candidates. Best clean 0.230169 (calm
+0.129379, worst -0.000007, nimp=5). Best BALANCED clean #3: 0.230318,
+calm 0.128398, worst -0.0009, nimp=5 -- dominates Phase-B C1 on BOTH mean
+and calm. CHOSEN as the v5B candidate.
+Phase B3 (10,003 evals, centers B2#3/B2#1/original-O1 + hinge): [PENDING --
+fill in when done; if no clean winner beats B2#3, B2#3 stands.]
+
+v5B per case: p00 0.324333, p01 0.294254, p02 0.315454, p03 0.242211,
+p04 0.160436, p05 0.096360; mean 0.230318; calm p04/p05 0.128398
+(guardrail <=0.1340 PASSED, better than v4's 0.130397). Wins vs v4: 5/6
+cases improve >=0.001 (p02 +0.0011 -- every case improves; worst -0.0009).
+Files: dev/main_v5b_candidate.py (stdlib port, 370 lines, md5
+961455596c24ffe0325ec33333a00903) + dev/best_params_v5b.json (md5
+8ae34a921dc45f90c23eb6143e53cf8c). Verified via official scorer path
+(poly_score2.py): mean 0.230318 EXACT (per-case identical to 6 decimals),
+deterministic (byte-identical x2 runs), ~0.1 s/case, shape valid.
+Validation (local, /tmp/poly_r5b_valid.py): LOCO 5/6 wins (only p05 loses,
++0.0046, a train-5-vmed artifact -- nested LOCO fixes it); nested LOCO
+5/6 wins; permutation placebo mean diff +0.0236 (all 5 shuffled-V perms
+worse by +0.008 to +0.040 -- the regime-V matching is real, not a fluke).
+Comparison candidates: C1 LOCO 4/6, nested 6/6, placebo +0.0194; B2#1
+(mean 0.230169) LOCO 4/6, nested 6/6, placebo +0.0130. B2#3 chosen for
+best LOCO + strongest placebo + best calm.
+
+COMPARISON WITH ROUND 5 (read from this file, not re-derived): round 5's
+v5 scores 0.222954 mean / calm 0.128383 -- BETTER than v5B's 0.230318 on
+practice mean, with nearly identical calm (0.128383 vs 0.128398). Its
+mechanisms (target gate, fast pull, linear target, empirical-z blend,
+staleness weights) are a different, larger gain than 5B's regime-V/hinge
+angle. The submit decision (v4 vs v5 vs v5B, before 04:00 WIB 14 Nov) is
+Adit's; 5B's candidate stands as the verified clean regime-angle entry.
+Do NOT submit any of them without his explicit yes.
+
+## Round 6 (14 Nov ~00:55-02:50 WIB) — v6 CONSERVATIVE: 0.222954 -> 0.222196 (target <=0,215 NOT reached)
+Perintah Adit 00:54 WIB: "upgrade lagi v5 sampe maksimal resource". Target: mean <=0,215
+(bar top-3 ~0,219), calm <=0,1284. Hasil FINAL: mean 0.222196, calm 0.127977 — gain
+kecil tapi bersih -0,000758 mean / -0,000406 calm vs v5, menang 5/6 case (p00 +0,000055,
+noise). Target 0,215 TIDAK tercapai (selisih 0,006); v6 tetap di zona top-10 practice
+(bar ~0,231), di luar top-3 (~0,219).
+
+### Skor v6 FINAL per case (official scorer, reproduksi persis)
+| Case | v6 | v5 | Δ |
+|---|---|---|---|
+| p00 | 0.276664 | 0.276608 | +0.000055 |
+| p01 | 0.287396 | 0.291221 | -0.003825 |
+| p02 | 0.309507 | 0.309624 | -0.000117 |
+| p03 | 0.247844 | 0.248005 | -0.000161 |
+| p04 | 0.158944 | 0.159240 | -0.000295 |
+| p05 | 0.097010 | 0.097526 | -0.000516 |
+| Mean | 0.222196 | 0.222954 | -0.000758 |
+| Calm | 0.127977 | 0.128383 | -0.000406 |
+
+### Mekanisme v6 FINAL (hanya 3 perubahan bedah di atas v5, tiap-tiap ada bukti LOCO)
+1. rscale_lo 0.3 -> 0.6 (sweep 0.45-1.0, optimum ~0.6): case paling tenang
+   (p05, V=0.0013) clipping di floor 0.3 dan pull terlalu lemah. Ablasi:
+   hapus -> +0.000108 mean, v6 menang 6/6. Nested LOCO: train-best lo=0.6
+   di 4/6 fold (p04: 0.4, p05: 0.7); held-out tetap lebih baik di 0.6.
+2. Z-table + baris h=240 ([-1.96, -0.483, 0, 0.387, 3.405] dari residual v5):
+   ekor terus tumbuh dengan h; tabel lama clamp h>180 ke baris 180.
+   Ablasi: hapus -> +0.000173 mean. Ini koreksi miss-spesifikasi terukur,
+   bukan parameter hasil tuning.
+3. trend_win 60 -> 30 (Box LOCO + local sweep 15-90, plateau 25-30):
+   gain -0.00046 mean, didorong p01 (-0.0028). Box LOCO: tw=30 terpilih
+   4/6 fold, weighted -0.00042, fold terburuk +0.00029.
+
+### KEPUTUSAN BESAR ronde 6: polish 30-param DITOLAK (nested LOCO)
+Jalur lokal sempat mencapai 0.220954 (calm 0.126083) via random search 3 seed
+(~7500 eval) + coordinate descent 3 ronde (~30 param). Tapi NESTED LOCO refit
+(script /tmp/poly_r6_nested_loco.py: 1 ronde descent dari v5 di train-5,
+uji held-out) MENGHANCURKANNYA: weighted refit 0.228065 vs v5 0.222763
+(+0.0053 LEBIH BURUK); tiap fold refit kalah dari v5 di held-out
+(p00 +0.0152, p03 +0.0076, p02 +0.0059, p01 +0.0031, p04 +0.0018, p05 0.0000).
+Artinya polish itu overfit dan besar kemungkinan skor LEBIH BURUK dari v5 di
+12 case final yang belum terlihat. Jalur Box independen sampai ke kesimpulan
+yang sama (CD 0.221405 in-sample -> LOCO 0.233003). Maka file kandidat
+DIKEMBALIKAN ke v5 + 3 mekanisme tervalidasi di atas; param hasil descent
+hanya tercatat di /tmp/poly_r6_final_params.json sebagai arsip, BUKAN di file
+kandidat. Pelajaran: di 6 case, tuning massal param = overfit; hanya
+perubahan mekanisme dengan bukti LOCO yang boleh masuk kandidat.
+
+### Ditolak di ronde 6 (jangan diulang tanpa alasan baru)
+- kasym Box (asimetri pull bergantung horizon, up -0.59/dn -0.16): 4/4 varian
+  lokal lebih buruk (0.2233-0.2251); Box juga menolak (terbaik 0.223036).
+  Tidak menumpuk di atas v5 — fast pull + linear target sudah menangkapnya.
+- Power-devigged share target (ide Gemini #1, a=0.7-1.5): KATASTROFIK,
+  p00 0.55-1.74.
+- Median drift (+/-0.001-0.002 di h=240): semua lebih buruk.
+- Mid_lin (0.1-0.3) dan mid_lin_up q75-only: netral (+/-0.0001).
+- gap_kup (k_up tumbuh dengan |gap|): makin buruk monoton, p02 +0.009 di 2.0.
+- Z-table refit penuh dari residual v5: 0.223035, ditolak (overfit point-mass
+  nol; z25=0 di h=8). Box juga netral (LOCO +0.000041).
+- Regime-split z-table (volatile vs calm): 0.222108, ditolak (noisy, p00 +0.0022).
+- lead_k price-discovery gate (ide Gemini #2): makin buruk monoton
+  (0.2221->0.2275); bantu p02 -0.006 tapi hancurkan p00/p04.
+- act_e activity-scaled sigma (ide Gemini #2): semua lebih buruk
+  (0.2218-0.2676).
+- Logit-space fan (ide Gemini #3): sudah ditolak katastropik di ronde 5 (0.267).
+- Box probes ditolak: h_pow, db_h, k_regime, gb_dn, pull_fast_w 0.7/0.85,
+  kappa 0.1/0.3, z_blend_h (datar). Box random search 2500 eval: TIDAK SATU
+  PUN mengalahkan v5 — v5 optimum lokal yang kuat di ruang itu.
+- EDA sampingan Box: p02 board sum 0.8075 (gap +0.1925) tapi sum masa depan
+  cuma pulih ke ~0.897 — gap menutup ~45% saja, konsisten dengan k_up kecil,
+  bukan celah mekanisme baru.
+
+### Validasi v6 FINAL (script /tmp/poly_r6_validate.py, log /tmp/poly_r6_validate_cons.log)
+- Skor reproduksi persis via scorer resmi; deterministik (2 run byte-identical);
+  shape valid (19/19/19/23/24/24 market, 240x5, monoton, [0,1]); ~0,1 dtk/case.
+- Gate plateau: rscale_lo 0.45-0.75 semua 0.2222-0.2223; target_gate_k dan
+  fast_gate_k datar di sekitar optimum — bukan artefak tuning tajam.
+- Reverse-gate placebo: 0.242425 (gain terhapus penuh — sinyal regime nyata).
+- Z-table LOCO: ±0.0005 di 4/6 case; p03 +0.0021, p05 +0.0008 — tabel membawa
+  sedikit fit case-spesifik, dicatat jujur.
+- Nested LOCO rscale_lo: pilihan 0.6 robust (lihat atas).
+- Ablasi per-fold: tiap mekanisme menang 6/6 (rscale_lo), 5/6 (h240),
+  4/6 (trend_win — gainnya p01-sentris, tapi Box LOCO mendukung).
+- CATATAN JUJUR: gain total kecil (-0.0008). Practice rank bukan final rank;
+  final = 12 case CALM belum terlihat. Rekomendasi ini "lebih baik dari v5
+  dengan bukti", bukan "top-3 tercapai".
+
+### Resource ronde 6
+- Lokal: 3 random search (~7500 eval) + coordinate descent 3 ronde + nested
+  LOCO + EDA (per-tau, coverage, bias, z-refit, regime-split) + Gemini 2 call
+  sukses (5 ide, 2 katastropik, 2 ditolak, 1 tidak diimplementasi).
+- Simular Box: child independen, ~5500+ eval, 4 core; laporan final terpisah.
+  Kandidat Box terbaik (v5 + trend_win 30 = 0.222484, calm 0.128395) kalah
+  dari v6 konservatif lokal (0.222196) dan calm-nya praktis di garis guardrail.
+- File FINAL: dev/main_v6_candidate.py (md5 e99230588c27dc340662f96f03883b98),
+  dev/best_params_v6.json. main.py (v4) + file v5 + file 5B TIDAK tersentuh.
+- Rekomendasi: submit v6 konservatif sebagai replacement (0.222196,
+  calm 0.127977) — gain kecil tapi bersih dan tervalidasi LOCO; target 0.215
+  tidak tercapai. Keputusan submit tetap Adit, deadline 04:00 WIB.
